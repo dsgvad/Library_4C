@@ -10,7 +10,7 @@ $app = new Slim\App($config);
 
 $key = 'server_hack';
 
-function generateToken($userid) {
+function generateToken($user_id) {
     global $key;
 
     $iat = time();
@@ -18,9 +18,9 @@ function generateToken($userid) {
         'iss' => 'http://library.org',
         'aud' => 'http://library.com',
         'iat' => $iat,
-        'exp' => $iat + 3600,
+        'exp' => $iat + 1800,
         "data" => array(
-            "userid" => $userid
+            "user_id" => $user_id
         )
     ];
     $token = JWT::encode($payload, $key, 'HS256');
@@ -28,16 +28,17 @@ function generateToken($userid) {
     $servername = "localhost";
     $username = "root";
     $password = "";
-    $dbname = "library";
+    $dbname = "lib_db";
 
     try {
         $conn = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
         $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-        $sql = "INSERT INTO tokens (token, userid, status) VALUES (:token, :userid, 'active')";
+        $sql = "INSERT INTO tokens_tbl (token, user_id, status) VALUES (:token, :user_id, 'active')";
         $stmt = $conn->prepare($sql);
         $stmt->bindParam(':token', $token);
-        $stmt->bindParam(':userid', $userid);
+        $stmt->bindParam(':user_id', $user_id);
+
         $stmt->execute();
     } catch (PDOException $e) {
 
@@ -51,13 +52,13 @@ function validateToken($token) {
     $servername = "localhost";
     $username = "root";
     $password = "";
-    $dbname = "library";
+    $dbname = "lib_db";
 
     try {
         $conn = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
         $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-        $sql = "SELECT * FROM tokens WHERE token = :token AND status = 'active'";
+        $sql = "SELECT * FROM tokens_tbl WHERE token = :token AND status = 'active'";
         $stmt = $conn->prepare($sql);
         $stmt->bindParam(':token', $token);
         $stmt->execute();
@@ -65,7 +66,7 @@ function validateToken($token) {
 
         if ($data) {
             $decoded = JWT::decode($token, new Key($key, 'HS256'));
-            return $decoded->data->userid;
+            return $decoded->data->user_id;
         } else {
             return false;
         }
@@ -78,13 +79,13 @@ function markTokenAsUsed($token) {
     $servername = "localhost";
     $username = "root";
     $password = "";
-    $dbname = "library";
+    $dbname = "lib_db";
 
     try {
         $conn = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
         $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-        $sql = "UPDATE tokens SET status = 'revoked', used_at = NOW() WHERE token = :token";
+        $sql = "UPDATE tokens_tbl SET status = 'revoked' = NOW() WHERE token = :token";
         $stmt = $conn->prepare($sql);
         $stmt->bindParam(':token', $token);
         $stmt->execute();
@@ -96,13 +97,13 @@ function updateTokenStatus($token, $status) {
     $servername = "localhost";
     $username = "root";
     $password = "";
-    $dbname = "library";
+    $dbname = "lib_db";
 
     try {
         $conn = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
         $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-        $sql = "UPDATE tokens SET status = :status WHERE token = :token";
+        $sql = "UPDATE tokens_tbl SET status = :status WHERE token = :token";
         $stmt = $conn->prepare($sql);
         $stmt->bindParam(':status', $status);
         $stmt->bindParam(':token', $token);
@@ -118,28 +119,28 @@ $app->post('/user/register', function (Request $request, Response $response, arr
     $servername = "localhost";
     $username = "root";
     $password = "";
-    $dbname = "library";
+    $dbname = "lib_db";
 
     try {
         $conn = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
         $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-        $stmt = $conn->prepare("SELECT COUNT(*) FROM users WHERE username = :username");
+        $stmt = $conn->prepare("SELECT COUNT(*) FROM users_tbl WHERE username = :username");
         $stmt->bindParam(':username', $uname);
         $stmt->execute();
         $count = $stmt->fetchColumn();
 
         if ($count > 0) {
-            $response->getBody()->write(json_encode(array("status" => "fail", "data" => array("title" => "Username already taken"))));
+            $response->getBody()->write(json_encode(array("status" => "fail", "data" => array("title" => "username $uname is already registered!"))));
         } else {
-            $sql = "INSERT INTO users (username, password) VALUES (:username, :password)";
+            $sql = "INSERT INTO users_tbl (username, password) VALUES (:username, :password)";
             $stmt = $conn->prepare($sql);
             $hashedPassword = hash('sha256', $pass);
             $stmt->bindParam(':username', $uname);
             $stmt->bindParam(':password', $hashedPassword);
             $stmt->execute();
 
-            $response->getBody()->write(json_encode(array("status" => "success", "data" => null)));
+            $response->getBody()->write(json_encode(array("status" => "successfully added username $uname", "data" => null)));
         }
     } catch (PDOException $e) {
         $response->getBody()->write(json_encode(array("status" => "fail", "data" => array("title" => $e->getMessage()))));
@@ -149,6 +150,7 @@ $app->post('/user/register', function (Request $request, Response $response, arr
     return $response;
 });
 
+
 $app->post('/user/auth', function (Request $request, Response $response, array $args) {
     $data = json_decode($request->getBody());
     $uname = $data->username;
@@ -156,22 +158,22 @@ $app->post('/user/auth', function (Request $request, Response $response, array $
     $servername = "localhost";
     $username = "root";
     $password = "";
-    $dbname = "library";
+    $dbname = "lib_db";
 
     try {
         $conn = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
         $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-        $sql = "SELECT * FROM users WHERE username='" . $uname . "' 
+        $sql = "SELECT * FROM users_tbl WHERE username='" . $uname . "' 
                 AND password='" . hash('SHA256', $pass) . "'";
         $stmt = $conn->prepare($sql);
         $stmt->execute();
 
         $data = $stmt->fetchAll();
         if (count($data) == 1) {
-            $userid = $data[0]['userid'];
-            $token = generateToken($userid);
-            $response->getBody()->write(json_encode(array("status" => "success", "token" => $token, "data" => null)));
+            $user_id = $data[0]['user_id'];
+            $token = generateToken($user_id);
+            $response->getBody()->write(json_encode(array("status" => "successfully generated for username $uname", "token" => $token, "data" => null)));
         } else {
             $response->getBody()->write(json_encode(array("status" => "fail", "data" => array("title" => "Authentication Failed"))));
         }
@@ -197,32 +199,32 @@ $app->get('/user/show', function (Request $request, Response $response) {
     $token = str_replace('Bearer ', '', $authHeader[0]);
     error_log("Token: " . $token);
 
-    $userid = validateToken($token);
+    $user_id = validateToken($token);
 
-    if (!$userid) {
-        error_log("Invalid or expired token");
-        return $response->withStatus(401)->write(json_encode(array("status" => "fail", "data" => array("title" => "Invalid or expired token"))));
+    if (!$user_id) {
+        error_log("Missing header or expired token");
+        return $response->withStatus(401)->write(json_encode(array("status" => "fail", "data" => array("title" => "Missing header or expired token"))));
     }
 
     $servername = "localhost";
     $dbusername = "root";
     $dbpassword = "";
-    $dbname = "library";
+    $dbname = "lib_db";
 
     try {
         $conn = new PDO("mysql:host=$servername;dbname=$dbname", $dbusername, $dbpassword);
         $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-        $stmt = $conn->prepare("SELECT userid, username FROM users");
+        $stmt = $conn->prepare("SELECT user_id, username FROM users_tbl");
         $stmt->execute();
-        $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $users_tbl = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        if ($users) {
+        if ($users_tbl) {
             markTokenAsUsed($token);
 
-            $newToken = generateToken($userid);
+            $newToken = generateToken($user_id);
 
-            return $response->write(json_encode(array("status" => "success", "token" => $newToken, "data" => $users)));
+            return $response->write(json_encode(array("status" => "Here is the list", "token" => $newToken, "data" => $users_tbl)));
         } else {
             return $response->write(json_encode(array("status" => "fail", "message" => "No users found")));
         }
@@ -237,24 +239,24 @@ $app->put('/user/update', function (Request $request, Response $response) {
     $data = json_decode($request->getBody());
 
     if (!isset($data->token)) {
-        return $response->withStatus(401)->write(json_encode(array("status" => "fail", "data" => array("title" => "Token missing in payload"))));
+        return $response->withStatus(401)->write(json_encode(array("status" => "fail", "data" => array("title" => "Token is missing"))));
     }
 
-    if (!isset($data->userid)) {
-        return $response->withStatus(400)->write(json_encode(array("status" => "fail", "data" => array("title" => "User ID missing in payload"))));
+    if (!isset($data->user_id)) {
+        return $response->withStatus(400)->write(json_encode(array("status" => "fail", "data" => array("title" => "User ID is missing"))));
     }
 
     $token = $data->token;
-    $useridFromToken = validateToken($token);
+    $user_idFromToken = validateToken($token);
 
-    if (!$useridFromToken) {
+    if (!$user_idFromToken) {
         return $response->withStatus(401)->write(json_encode(array("status" => "fail", "data" => array("title" => "Invalid or expired token"))));
     }
 
-    $useridToUpdate = $data->userid;
+    $user_idToUpdate = $data->user_id;
 
-    if ($useridFromToken != $useridToUpdate) {
-        return $response->withStatus(403)->write(json_encode(array("status" => "fail", "data" => array("title" => "Unauthorized action"))));
+    if ($user_idFromToken != $user_idToUpdate) {
+        return $response->withStatus(403)->write(json_encode(array("status" => "fail", "data" => array("title" => "You don't have access"))));
     }
 
     $uname = $data->username;
@@ -262,24 +264,24 @@ $app->put('/user/update', function (Request $request, Response $response) {
     $servername = "localhost";
     $username = "root";
     $password = "";
-    $dbname = "library";
+    $dbname = "lib_db";
 
     try {
         $conn = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
         $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-        $sql = "UPDATE users SET username = :username, password = :password WHERE userid = :userid";
+        $sql = "UPDATE users_tbl SET username = :username, password = :password WHERE user_id = :user_id";
         $stmt = $conn->prepare($sql);
         $hashedPassword = hash('sha256', $pass);
         $stmt->bindParam(':username', $uname);
         $stmt->bindParam(':password', $hashedPassword);
-        $stmt->bindParam(':userid', $useridToUpdate);
+        $stmt->bindParam(':user_id', $user_idToUpdate);
         $stmt->execute();
 
         markTokenAsUsed($token);
 
-        $newToken = generateToken($useridFromToken);
-        $response->getBody()->write(json_encode(array("status" => "success", "token" => $newToken, "data" => null)));
+        $newToken = generateToken($user_idFromToken);
+        $response->getBody()->write(json_encode(array("status" => "successfully updated for user $uname", "token" => $newToken, "data" => null)));
     } catch (PDOException $e) {
         $response->getBody()->write(json_encode(array("status" => "fail", "data" => array("title" => $e->getMessage()))));
     }
@@ -300,7 +302,7 @@ $app->delete('/user/delete', function (Request $request, Response $response) {
         return $response->withStatus(401)->write(json_encode(array("status" => "fail", "data" => array("title" => "Token missing in payload"))));
     }
 
-    if (!isset($data->userid)) {
+    if (!isset($data->user_id)) {
         return $response->withStatus(400)->write(json_encode(array("status" => "fail", "data" => array("title" => "User ID missing in payload"))));
     }
 
@@ -311,7 +313,7 @@ $app->delete('/user/delete', function (Request $request, Response $response) {
         return $response->withStatus(401)->write(json_encode(array("status" => "fail", "data" => array("title" => "Invalid or expired token"))));
     }
 
-    $useridToDelete = $data->userid;
+    $useridToDelete = $data->user_id;
 
     if ($useridFromToken != $useridToDelete) {
         return $response->withStatus(403)->write(json_encode(array("status" => "fail", "data" => array("title" => "Unauthorized action"))));
@@ -320,20 +322,20 @@ $app->delete('/user/delete', function (Request $request, Response $response) {
     $servername = "localhost";
     $username = "root";
     $password = "";
-    $dbname = "library";
+    $dbname = "lib_db";
 
     try {
         $conn = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
         $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-        $sql = "DELETE FROM users WHERE userid = :userid";
+        $sql = "DELETE FROM users_tbl WHERE user_id = :user_id";
         $stmt = $conn->prepare($sql);
-        $stmt->bindParam(':userid', $useridToDelete);
+        $stmt->bindParam(':user_id', $useridToDelete);
         $stmt->execute();
 
         markTokenAsUsed($token);
 
-        $response->getBody()->write(json_encode(array("status" => "success", "data" => null)));
+        $response->getBody()->write(json_encode(array("status" => "successfully deleted for user $uname", "data" => null)));
     } catch (PDOException $e) {
         $response->getBody()->write(json_encode(array("status" => "fail", "data" => array("title" => $e->getMessage()))));
     }
@@ -341,6 +343,7 @@ $app->delete('/user/delete', function (Request $request, Response $response) {
     $conn = null;
     return $response;
 });
+
 
 $app->post('/author/register', function (Request $request, Response $response, array $args) {
     $data = json_decode($request->getBody());
@@ -355,38 +358,38 @@ $app->post('/author/register', function (Request $request, Response $response, a
 
     $token = $data->token;
     $name = $data->name;
-    $useridFromToken = validateToken($token);
+    $user_idFromToken = validateToken($token);
 
-    if (!$useridFromToken) {
+    if (!$user_idFromToken) {
         return $response->withStatus(401)->write(json_encode(array("status" => "fail", "data" => array("title" => "Invalid or expired token"))));
     }
 
     $servername = "localhost";
     $username = "root";
     $password = "";
-    $dbname = "library";
+    $dbname = "lib_db";
 
     try {
         $conn = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
         $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-        $stmt = $conn->prepare("SELECT COUNT(*) FROM authors WHERE name = :name");
+        $stmt = $conn->prepare("SELECT COUNT(*) FROM author_tbl WHERE name = :name");
         $stmt->bindParam(':name', $name);
         $stmt->execute();
         $count = $stmt->fetchColumn();
 
         if ($count > 0) {
-            $response->getBody()->write(json_encode(array("status" => "fail", "data" => array("title" => "Author name already taken"))));
+            $response->getBody()->write(json_encode(array("status" => "fail", "data" => array("title" => "Author name already exist"))));
         } else {
-            $sql = "INSERT INTO authors (name) VALUES (:name)";
+            $sql = "INSERT INTO author_tbl (name) VALUES (:name)";
             $stmt = $conn->prepare($sql);
             $stmt->bindParam(':name', $name);
             $stmt->execute();
 
             markTokenAsUsed($token);
 
-            $newToken = generateToken($useridFromToken);
-            $response->getBody()->write(json_encode(array("status" => "success", "token" => $newToken, "data" => null)));
+            $newToken = generateToken($user_idFromToken);
+            $response->getBody()->write(json_encode(array("status" => "successfully registered $name", "token" => $newToken, "data" => null)));
         }
     } catch (PDOException $e) {
         $response->getBody()->write(json_encode(array("status" => "fail", "data" => array("title" => $e->getMessage()))));
@@ -411,9 +414,9 @@ $app->get('/author/show', function (Request $request, Response $response) {
     $token = str_replace('Bearer ', '', $authHeader[0]);
     error_log("Token: " . $token);
 
-    $userid = validateToken($token);
+    $user_id = validateToken($token);
 
-    if (!$userid) {
+    if (!$user_id) {
         error_log("Invalid or expired token");
         return $response->withStatus(401)->write(json_encode(array("status" => "fail", "data" => array("title" => "Invalid or expired token"))));
     }
@@ -421,22 +424,22 @@ $app->get('/author/show', function (Request $request, Response $response) {
     $servername = "localhost";
     $dbusername = "root";
     $dbpassword = "";
-    $dbname = "library";
+    $dbname = "lib_db";
 
     try {
         $conn = new PDO("mysql:host=$servername;dbname=$dbname", $dbusername, $dbpassword);
         $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-        $stmt = $conn->prepare("SELECT authorid, name FROM authors");
+        $stmt = $conn->prepare("SELECT author_id, name FROM author_tbl");
         $stmt->execute();
-        $authors = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $author_tbl = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        if ($authors) {
+        if ($author_tbl) {
             markTokenAsUsed($token);
 
-            $newToken = generateToken($userid);
+            $newToken = generateToken($user_id);
 
-            return $response->write(json_encode(array("status" => "success", "token" => $newToken, "data" => $authors)));
+            return $response->write(json_encode(array("status" => "Succesfully load the list", "token" => $newToken, "data" => $author_tbl)));
         } else {
             return $response->write(json_encode(array("status" => "fail", "message" => "No authors found")));
         }
@@ -454,38 +457,38 @@ $app->put('/author/update', function (Request $request, Response $response) {
         return $response->withStatus(401)->write(json_encode(array("status" => "fail", "data" => array("title" => "Token missing in payload"))));
     }
 
-    if (!isset($data->authorid)) {
+    if (!isset($data->author_id)) {
         return $response->withStatus(400)->write(json_encode(array("status" => "fail", "data" => array("title" => "Author ID missing in payload"))));
     }
 
     $token = $data->token;
-    $useridFromToken = validateToken($token);
+    $user_idFromToken = validateToken($token);
 
-    if (!$useridFromToken) {
+    if (!$user_idFromToken) {
         return $response->withStatus(401)->write(json_encode(array("status" => "fail", "data" => array("title" => "Invalid or expired token"))));
     }
 
-    $authoridToUpdate = $data->authorid;
+    $author_idToUpdate = $data->author_id;
     $name = $data->name;
     $servername = "localhost";
     $username = "root";
     $password = "";
-    $dbname = "library";
+    $dbname = "lib_db";
 
     try {
         $conn = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
         $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-        $sql = "UPDATE authors SET name = :name WHERE authorid = :authorid";
+        $sql = "UPDATE author_tbl SET name = :name WHERE author_id = :author_id";
         $stmt = $conn->prepare($sql);
         $stmt->bindParam(':name', $name);
-        $stmt->bindParam(':authorid', $authoridToUpdate);
+        $stmt->bindParam(':author_id', $author_idToUpdate);
         $stmt->execute();
 
         markTokenAsUsed($token);
 
-        $newToken = generateToken($useridFromToken);
-        $response->getBody()->write(json_encode(array("status" => "success", "token" => $newToken, "data" => null)));
+        $newToken = generateToken($user_idFromToken);
+        $response->getBody()->write(json_encode(array("status" => "successfully updated author $name", "token" => $newToken, "data" => null)));
     } catch (PDOException $e) {
         $response->getBody()->write(json_encode(array("status" => "fail", "data" => array("title" => $e->getMessage()))));
     }
@@ -494,57 +497,58 @@ $app->put('/author/update', function (Request $request, Response $response) {
     return $response;
 });
 
-$app->delete('/author/delete', function (Request $request, Response $response) {
-    $data = json_decode($request->getBody());
+    $app->delete('/author/delete', function (Request $request, Response $response) {
+        $data = json_decode($request->getBody());
 
-    if (json_last_error() !== JSON_ERROR_NONE) {
-        error_log("JSON Error: " . json_last_error_msg());
-        return $response->withStatus(400)->write(json_encode(array("status" => "fail", "data" => array("title" => "Invalid JSON payload"))));
-    }
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            error_log("JSON Error: " . json_last_error_msg());
+            return $response->withStatus(400)->write(json_encode(array("status" => "fail", "data" => array("title" => "Invalid JSON payload"))));
+        }
 
-    if (!isset($data->token)) {
-        return $response->withStatus(401)->write(json_encode(array("status" => "fail", "data" => array("title" => "Token missing in payload"))));
-    }
+        if (!isset($data->token)) {
+            return $response->withStatus(401)->write(json_encode(array("status" => "fail", "data" => array("title" => "Token missing in payload"))));
+        }
 
-    if (!isset($data->authorid)) {
-        return $response->withStatus(400)->write(json_encode(array("status" => "fail", "data" => array("title" => "Author ID missing in payload"))));
-    }
+        if (!isset($data->author_id)) {
+            return $response->withStatus(400)->write(json_encode(array("status" => "fail", "data" => array("title" => "Author ID missing in payload"))));
+        }
 
-    $token = $data->token;
-    $useridFromToken = validateToken($token);
+        $token = $data->token;
+        $useridFromToken = validateToken($token);
 
-    if (!$useridFromToken) {
-        return $response->withStatus(401)->write(json_encode(array("status" => "fail", "data" => array("title" => "Invalid or expired token"))));
-    }
+        if (!$useridFromToken) {
+            return $response->withStatus(401)->write(json_encode(array("status" => "fail", "data" => array("title" => "Invalid or expired token"))));
+        }
 
-    $authoridToDelete = $data->authorid;
+        $authoridToDelete = $data->author_id;
 
-    $servername = "localhost";
-    $username = "root";
-    $password = "";
-    $dbname = "library";
+        $servername = "localhost";
+        $username = "root";
+        $password = "";
+        $dbname = "lib_db";
 
-    try {
-        $conn = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
-        $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        try {
+            $conn = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
+            $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-        $sql = "DELETE FROM authors WHERE authorid = :authorid";
-        $stmt = $conn->prepare($sql);
-        $stmt->bindParam(':authorid', $authoridToDelete);
-        $stmt->execute();
+            $sql = "DELETE FROM author_tbl WHERE author_id = :author_id";
+            $stmt = $conn->prepare($sql);
+            $stmt->bindParam(':author_id', $authoridToDelete);
+            $stmt->execute();
 
-        markTokenAsUsed($token);
+            markTokenAsUsed($token);
 
-        $newToken = generateToken($useridFromToken);
+            $newToken = generateToken($useridFromToken);
 
-        $response->getBody()->write(json_encode(array("status" => "success", "token" => $newToken, "data" => null)));
-    } catch (PDOException $e) {
-        $response->getBody()->write(json_encode(array("status" => "fail", "data" => array("title" => $e->getMessage()))));
-    }
+            $response->getBody()->write(json_encode(array("status" => "successfully deleted", "token" => $newToken, "data" => null)));
+        } catch (PDOException $e) {
+            $response->getBody()->write(json_encode(array("status" => "fail", "data" => array("title" => $e->getMessage()))));
+        }
 
-    $conn = null;
-    return $response;
-});
+        $conn = null;
+        return $response;
+    });
+
 
 $app->post('/book/register', function (Request $request, Response $response, array $args) {
     $data = json_decode($request->getBody());
@@ -553,47 +557,47 @@ $app->post('/book/register', function (Request $request, Response $response, arr
         return $response->withStatus(401)->write(json_encode(array("status" => "fail", "data" => array("title" => "Token missing in payload"))));
     }
 
-    if (!isset($data->title) || !isset($data->authorid)) {
+    if (!isset($data->title) || !isset($data->author_id)) {
         return $response->withStatus(400)->write(json_encode(array("status" => "fail", "data" => array("title" => "Title or Author ID missing in payload"))));
     }
 
     $token = $data->token;
     $title = $data->title;
-    $authorid = $data->authorid;
-    $useridFromToken = validateToken($token);
+    $author_id = $data->author_id;
+    $user_idFromToken = validateToken($token);
 
-    if (!$useridFromToken) {
+    if (!$user_idFromToken) {
         return $response->withStatus(401)->write(json_encode(array("status" => "fail", "data" => array("title" => "Invalid or expired token"))));
     }
 
     $servername = "localhost";
     $username = "root";
     $password = "";
-    $dbname = "library";
+    $dbname = "lib_db";
 
     try {
         $conn = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
         $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-        $stmt = $conn->prepare("SELECT COUNT(*) FROM books WHERE title = :title AND authorid = :authorid");
+        $stmt = $conn->prepare("SELECT COUNT(*) FROM books_tbl WHERE title = :title AND author_id = :author_id");
         $stmt->bindParam(':title', $title);
-        $stmt->bindParam(':authorid', $authorid);
+        $stmt->bindParam(':author_id', $author_id);
         $stmt->execute();
         $count = $stmt->fetchColumn();
 
         if ($count > 0) {
             $response->getBody()->write(json_encode(array("status" => "fail", "data" => array("title" => "Book already exists"))));
         } else {
-            $sql = "INSERT INTO books (title, authorid) VALUES (:title, :authorid)";
+            $sql = "INSERT INTO books_tbl (title, author_id) VALUES (:title, :author_id)";
             $stmt = $conn->prepare($sql);
             $stmt->bindParam(':title', $title);
-            $stmt->bindParam(':authorid', $authorid);
+            $stmt->bindParam(':author_id', $author_id);
             $stmt->execute();
 
             markTokenAsUsed($token);
 
-            $newToken = generateToken($useridFromToken);
-            $response->getBody()->write(json_encode(array("status" => "success", "token" => $newToken, "data" => null)));
+            $newToken = generateToken($user_idFromToken);
+            $response->getBody()->write(json_encode(array("status" => "successfully added $title with author number $author_id", "token" => $newToken, "data" => null)));
         }
     } catch (PDOException $e) {
         $response->getBody()->write(json_encode(array("status" => "fail", "data" => array("title" => $e->getMessage()))));
@@ -617,9 +621,9 @@ $app->get('/book/show', function (Request $request, Response $response) {
     $token = str_replace('Bearer ', '', $authHeader[0]);
     error_log("Token: " . $token);
 
-    $userid = validateToken($token);
+    $user_id = validateToken($token);
 
-    if (!$userid) {
+    if (!$user_id) {
         error_log("Invalid or expired token");
         return $response->withStatus(401)->write(json_encode(array("status" => "fail", "data" => array("title" => "Invalid or expired token"))));
     }
@@ -627,22 +631,22 @@ $app->get('/book/show', function (Request $request, Response $response) {
     $servername = "localhost";
     $dbusername = "root";
     $dbpassword = "";
-    $dbname = "library";
+    $dbname = "lib_db";
 
     try {
         $conn = new PDO("mysql:host=$servername;dbname=$dbname", $dbusername, $dbpassword);
         $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-        $stmt = $conn->prepare("SELECT bookid, title, authorid FROM books");
+        $stmt = $conn->prepare("SELECT book_id, title, author_id FROM books_tbl");
         $stmt->execute();
-        $books = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $books_tbl = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        if ($books) {
+        if ($books_tbl) {
             markTokenAsUsed($token);
 
-            $newToken = generateToken($userid);
+            $newToken = generateToken($user_id);
 
-            return $response->write(json_encode(array("status" => "success", "token" => $newToken, "data" => $books)));
+            return $response->write(json_encode(array("status" => "success here are the list", "token" => $newToken, "data" => $books_tbl)));
         } else {
             return $response->write(json_encode(array("status" => "fail", "message" => "No books found")));
         }
@@ -660,40 +664,40 @@ $app->put('/book/update', function (Request $request, Response $response) {
         return $response->withStatus(401)->write(json_encode(array("status" => "fail", "data" => array("title" => "Token missing in payload"))));
     }
 
-    if (!isset($data->bookid)) {
+    if (!isset($data->book_id)) {
         return $response->withStatus(400)->write(json_encode(array("status" => "fail", "data" => array("title" => "Book ID missing in payload"))));
     }
 
     $token = $data->token;
-    $useridFromToken = validateToken($token);
+    $user_idFromToken = validateToken($token);
 
-    if (!$useridFromToken) {
+    if (!$user_idFromToken) {
         return $response->withStatus(401)->write(json_encode(array("status" => "fail", "data" => array("title" => "Invalid or expired token"))));
     }
 
-    $bookidToUpdate = $data->bookid;
+    $book_idToUpdate = $data->book_id;
     $title = $data->title;
-    $authorid = $data->authorid;
+    $author_id = $data->author_id;
     $servername = "localhost";
     $username = "root";
     $password = "";
-    $dbname = "library";
+    $dbname = "lib_db";
 
     try {
         $conn = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
         $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-        $sql = "UPDATE books SET title = :title, authorid = :authorid WHERE bookid = :bookid";
+        $sql = "UPDATE books_tbl SET title = :title, author_id = :author_id WHERE book_id = :book_id";
         $stmt = $conn->prepare($sql);
         $stmt->bindParam(':title', $title);
-        $stmt->bindParam(':authorid', $authorid);
-        $stmt->bindParam(':bookid', $bookidToUpdate);
+        $stmt->bindParam(':author_id', $author_id);
+        $stmt->bindParam(':book_id', $book_idToUpdate);
         $stmt->execute();
 
         markTokenAsUsed($token);
 
-        $newToken = generateToken($useridFromToken);
-        $response->getBody()->write(json_encode(array("status" => "success", "token" => $newToken, "data" => null)));
+        $newToken = generateToken($user_idFromToken);
+        $response->getBody()->write(json_encode(array("status" => "successfully updated to $title with book $book_idToUpdate and author id $author_id", "token" => $newToken, "data" => null)));
     } catch (PDOException $e) {
         $response->getBody()->write(json_encode(array("status" => "fail", "data" => array("title" => $e->getMessage()))));
     }
@@ -714,38 +718,38 @@ $app->delete('/book/delete', function (Request $request, Response $response) {
         return $response->withStatus(401)->write(json_encode(array("status" => "fail", "data" => array("title" => "Token missing in payload"))));
     }
 
-    if (!isset($data->bookid)) {
+    if (!isset($data->book_id)) {
         return $response->withStatus(400)->write(json_encode(array("status" => "fail", "data" => array("title" => "Book ID missing in payload"))));
     }
 
     $token = $data->token;
-    $useridFromToken = validateToken($token);
+    $user_idFromToken = validateToken($token);
 
-    if (!$useridFromToken) {
+    if (!$user_idFromToken) {
         return $response->withStatus(401)->write(json_encode(array("status" => "fail", "data" => array("title" => "Invalid or expired token"))));
     }
 
-    $bookidToDelete = $data->bookid;
+    $book_idToDelete = $data->book_id;
 
     $servername = "localhost";
     $username = "root";
     $password = "";
-    $dbname = "library";
+    $dbname = "lib_db";
 
     try {
         $conn = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
         $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-        $sql = "DELETE FROM books WHERE bookid = :bookid";
+        $sql = "DELETE FROM books_tbl WHERE book_id = :book_id";
         $stmt = $conn->prepare($sql);
-        $stmt->bindParam(':bookid', $bookidToDelete);
+        $stmt->bindParam(':book_id', $book_idToDelete);
         $stmt->execute();
 
         markTokenAsUsed($token);
 
-        $newToken = generateToken($useridFromToken);
+        $newToken = generateToken($user_idFromToken);
 
-        $response->getBody()->write(json_encode(array("status" => "success", "token" => $newToken, "data" => null)));
+        $response->getBody()->write(json_encode(array("status" => "successfully deleted book id $book_idToDelete", "token" => $newToken, "data" => null)));
     } catch (PDOException $e) {
         $response->getBody()->write(json_encode(array("status" => "fail", "data" => array("title" => $e->getMessage()))));
     }
@@ -761,47 +765,47 @@ $app->post('/book_author/register', function (Request $request, Response $respon
         return $response->withStatus(401)->write(json_encode(array("status" => "fail", "data" => array("title" => "Token missing in payload"))));
     }
 
-    if (!isset($data->bookid) || !isset($data->authorid)) {
+    if (!isset($data->book_id) || !isset($data->author_id)) {
         return $response->withStatus(400)->write(json_encode(array("status" => "fail", "data" => array("title" => "Book ID or Author ID missing in payload"))));
     }
 
     $token = $data->token;
-    $bookid = $data->bookid;
-    $authorid = $data->authorid;
-    $useridFromToken = validateToken($token);
+    $book_id = $data->book_id;
+    $author_id = $data->author_id;
+    $user_idFromToken = validateToken($token);
 
-    if (!$useridFromToken) {
+    if (!$user_idFromToken) {
         return $response->withStatus(401)->write(json_encode(array("status" => "fail", "data" => array("title" => "Invalid or expired token"))));
     }
 
     $servername = "localhost";
     $username = "root";
     $password = "";
-    $dbname = "library";
+    $dbname = "lib_db";
 
     try {
         $conn = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
         $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-        $stmt = $conn->prepare("SELECT COUNT(*) FROM books_authors WHERE bookid = :bookid AND authorid = :authorid");
-        $stmt->bindParam(':bookid', $bookid);
-        $stmt->bindParam(':authorid', $authorid);
+        $stmt = $conn->prepare("SELECT COUNT(*) FROM books_authors WHERE book_id = :book_id AND author_id = :author_id");
+        $stmt->bindParam(':book_id', $book_id);
+        $stmt->bindParam(':author_id', $author_id);
         $stmt->execute();
         $count = $stmt->fetchColumn();
 
         if ($count > 0) {
             $response->getBody()->write(json_encode(array("status" => "fail", "data" => array("title" => "Book author relationship already exists"))));
         } else {
-            $sql = "INSERT INTO books_authors (bookid, authorid) VALUES (:bookid, :authorid)";
+            $sql = "INSERT INTO books_authors (book_id, author_id) VALUES (:book_id, :author_id)";
             $stmt = $conn->prepare($sql);
-            $stmt->bindParam(':bookid', $bookid);
-            $stmt->bindParam(':authorid', $authorid);
+            $stmt->bindParam(':book_id', $book_id);
+            $stmt->bindParam(':author_id', $author_id);
             $stmt->execute();
 
             markTokenAsUsed($token);
 
-            $newToken = generateToken($useridFromToken);
-            $response->getBody()->write(json_encode(array("status" => "success", "token" => $newToken, "data" => null)));
+            $newToken = generateToken($user_idFromToken);
+            $response->getBody()->write(json_encode(array("status" => "successfully added book_id $book_id and author_id $author_id", "token" => $newToken, "data" => null)));
         }
     } catch (PDOException $e) {
         $response->getBody()->write(json_encode(array("status" => "fail", "data" => array("title" => $e->getMessage()))));
@@ -825,9 +829,9 @@ $app->get('/book_author/show', function (Request $request, Response $response) {
     $token = str_replace('Bearer ', '', $authHeader[0]);
     error_log("Token: " . $token);
 
-    $userid = validateToken($token);
+    $user_id = validateToken($token);
 
-    if (!$userid) {
+    if (!$user_id) {
         error_log("Invalid or expired token");
         return $response->withStatus(401)->write(json_encode(array("status" => "fail", "data" => array("title" => "Invalid or expired token"))));
     }
@@ -835,22 +839,22 @@ $app->get('/book_author/show', function (Request $request, Response $response) {
     $servername = "localhost";
     $dbusername = "root";
     $dbpassword = "";
-    $dbname = "library";
+    $dbname = "lib_db";
 
     try {
         $conn = new PDO("mysql:host=$servername;dbname=$dbname", $dbusername, $dbpassword);
         $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-        $stmt = $conn->prepare("SELECT collectionid, bookid, authorid FROM books_authors");
+        $stmt = $conn->prepare("SELECT collection_id, book_id, author_id FROM books_authors");
         $stmt->execute();
         $bookAuthors = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         if ($bookAuthors) {
             markTokenAsUsed($token);
 
-            $newToken = generateToken($userid);
+            $newToken = generateToken($user_id);
 
-            return $response->write(json_encode(array("status" => "success", "token" => $newToken, "data" => $bookAuthors)));
+            return $response->write(json_encode(array("status" => "Here are the list", "token" => $newToken, "data" => $bookAuthors)));
         } else {
             return $response->write(json_encode(array("status" => "fail", "message" => "No book authors found")));
         }
@@ -868,40 +872,40 @@ $app->put('/book_author/update', function (Request $request, Response $response)
         return $response->withStatus(401)->write(json_encode(array("status" => "fail", "data" => array("title" => "Token missing in payload"))));
     }
 
-    if (!isset($data->collectionid)) {
+    if (!isset($data->collection_id)) {
         return $response->withStatus(400)->write(json_encode(array("status" => "fail", "data" => array("title" => "Collection ID missing in payload"))));
     }
 
     $token = $data->token;
-    $useridFromToken = validateToken($token);
+    $user_idFromToken = validateToken($token);
 
-    if (!$useridFromToken) {
+    if (!$user_idFromToken) {
         return $response->withStatus(401)->write(json_encode(array("status" => "fail", "data" => array("title" => "Invalid or expired token"))));
     }
 
-    $collectionidToUpdate = $data->collectionid;
-    $bookid = $data->bookid;
-    $authorid = $data->authorid;
+    $collection_idToUpdate = $data->collection_id;
+    $book_id = $data->book_id;
+    $author_id = $data->author_id;
     $servername = "localhost";
     $username = "root";
     $password = "";
-    $dbname = "library";
+    $dbname = "lib_db";
 
     try {
         $conn = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
         $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-        $sql = "UPDATE books_authors SET bookid = :bookid, authorid = :authorid WHERE collectionid = :collectionid";
+        $sql = "UPDATE books_authors SET book_id = :book_id, author_id = :author_id WHERE collection_id = :collection_id";
         $stmt = $conn->prepare($sql);
-        $stmt->bindParam(':bookid', $bookid);
-        $stmt->bindParam(':authorid', $authorid);
-        $stmt->bindParam(':collectionid', $collectionidToUpdate);
+        $stmt->bindParam(':book_id', $book_id);
+        $stmt->bindParam(':author_id', $author_id);
+        $stmt->bindParam(':collection_id', $collection_idToUpdate);
         $stmt->execute();
 
         markTokenAsUsed($token);
 
-        $newToken = generateToken($useridFromToken);
-        $response->getBody()->write(json_encode(array("status" => "success", "token" => $newToken, "data" => null)));
+        $newToken = generateToken($user_idFromToken);
+        $response->getBody()->write(json_encode(array("status" => "successfully updated", "token" => $newToken, "data" => null)));
     } catch (PDOException $e) {
         $response->getBody()->write(json_encode(array("status" => "fail", "data" => array("title" => $e->getMessage()))));
     }
@@ -922,38 +926,38 @@ $app->delete('/book_author/delete', function (Request $request, Response $respon
         return $response->withStatus(401)->write(json_encode(array("status" => "fail", "data" => array("title" => "Token missing in payload"))));
     }
 
-    if (!isset($data->collectionid)) {
+    if (!isset($data->collection_id)) {
         return $response->withStatus(400)->write(json_encode(array("status" => "fail", "data" => array("title" => "Collection ID missing in payload"))));
     }
 
     $token = $data->token;
-    $useridFromToken = validateToken($token);
+    $user_idFromToken = validateToken($token);
 
-    if (!$useridFromToken) {
+    if (!$user_idFromToken) {
         return $response->withStatus(401)->write(json_encode(array("status" => "fail", "data" => array("title" => "Invalid or expired token"))));
     }
 
-    $collectionidToDelete = $data->collectionid;
+    $collection_idToDelete = $data->collection_id;
 
     $servername = "localhost";
     $username = "root";
     $password = "";
-    $dbname = "library";
+    $dbname = "lib_db";
 
     try {
         $conn = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
         $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-        $sql = "DELETE FROM books_authors WHERE collectionid = :collectionid";
+        $sql = "DELETE FROM books_authors WHERE collection_id = :collection_id";
         $stmt = $conn->prepare($sql);
-        $stmt->bindParam(':collectionid', $collectionidToDelete);
+        $stmt->bindParam(':collection_id', $collection_idToDelete);
         $stmt->execute();
 
         markTokenAsUsed($token);
 
-        $newToken = generateToken($useridFromToken);
+        $newToken = generateToken($user_idFromToken);
 
-        $response->getBody()->write(json_encode(array("status" => "success", "token" => $newToken, "data" => null)));
+        $response->getBody()->write(json_encode(array("status" => "success deleted", "token" => $newToken, "data" => null)));
     } catch (PDOException $e) {
         $response->getBody()->write(json_encode(array("status" => "fail", "data" => array("title" => $e->getMessage()))));
     }
