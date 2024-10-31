@@ -19,7 +19,7 @@ The Library Management API, built with PHP and the Slim framework, provides a se
 
 - **Endpoint:** `localhost/library-main/public/user/register`
 - **Method:** `POST`
-- **Description:** Registers a new user in the system.
+- **Description:** Registers a new user in the system with a username and password.
 
 #### Request Payload
 ```bash
@@ -39,7 +39,7 @@ The Library Management API, built with PHP and the Slim framework, provides a se
 
 - **Endpoint:** `localhost/library-main/public/user/auth`
 - **Method:** `POST`
-- **Description:** Authenticates an existing user and returns a JWT token.
+- **Description:**  Authenticates an existing user, returning a JWT token upon successful login.
 
 ##### Request Payload
 
@@ -63,7 +63,7 @@ The Library Management API, built with PHP and the Slim framework, provides a se
 
 - **Endpoint:** `localhost/library-main/public/user/show`
 - **Method:** `GET`
-- **Description:** Retrieves user information. Requires a valid JWT token.
+- **Description:** Retrieves the authenticated user’s profile information. Requires a valid JWT token.
 
 ##### Request Headers
 
@@ -90,7 +90,7 @@ The Library Management API, built with PHP and the Slim framework, provides a se
 
 - **Endpoint:** `localhost/library-main/public/user/update`
 - **Method:** `PUT`
-- **Description:** Updates an existing user's information.
+- **Description:** Updates the profile information of an existing user.
 
 ##### Request Headers
 
@@ -115,7 +115,7 @@ The Library Management API, built with PHP and the Slim framework, provides a se
 
 - **Endpoint:** `localhost/library-main/public/author/register`
 - **Method:** `POST`
-- **Description:** Registers a new author in the system.
+- **Description:** Registers a new author in the library system.
 
 ##### Request Payload
 
@@ -137,7 +137,7 @@ The Library Management API, built with PHP and the Slim framework, provides a se
 
 - **Endpoint:** `localhost/library-main/public/author/show`
 - **Method:** `GET`
-- **Description:** Retrieves a list of authors. Requires a valid JWT token.
+- **Description:** Returns a list of authors available in the library. Requires a valid JWT token.
 
 ##### Request Headers
 
@@ -164,7 +164,7 @@ The Library Management API, built with PHP and the Slim framework, provides a se
 
 - **Endpoint:** `localhost/library-main/public/author/delete`
 - **Method:** `DEL`
-- **Description:** Delete the existing author.
+- **Description:**  Deletes an author from the library.
 
 ##### Request Headers
 
@@ -186,7 +186,7 @@ The Library Management API, built with PHP and the Slim framework, provides a se
 
 - **Endpoint:** `localhost/library-main/public/book/register`
 - **Method:** `POST`
-- **Description:** Registers a new book in the system.
+- **Description:** Adds a new book to the library system, associating it with an author by ID.
 
 ##### Request Payload
 
@@ -209,7 +209,7 @@ The Library Management API, built with PHP and the Slim framework, provides a se
 
 - **Endpoint:** `localhost/library-main/public/book/show`
 - **Method:** `GET`
-- **Description:** Retrieves a list of books from the system. Requires a valid JWT token.
+- **Description:** Adds a new book to the library system, associating it with an author by ID.
 
 ##### Request Headers
 
@@ -237,7 +237,7 @@ The Library Management API, built with PHP and the Slim framework, provides a se
 
 - **Endpoint:** `localhost/library-main/public/book/update`
 - **Method:** `PUT`
-- **Description:** Updates the details of an existing book.
+- **Description:** Updates details for an existing book in the library system.
 
 ##### Request Payload
 
