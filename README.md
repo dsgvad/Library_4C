@@ -288,10 +288,5 @@ This API uses **JWT** for secure authentication. A token is required for most en
 
 ---
 
-## 📜 License
-This project is licensed under the **MIT License**.
-
----
-
 ## 👤 Author
 **Elmer Jr. Flores**
