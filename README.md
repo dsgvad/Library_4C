@@ -1,11 +1,11 @@
 
-# 📚 Library Management API
+#  Library Management API
 
 This Library Management API, built using **PHP** with the **Slim framework**, allows for streamlined management of library resources, such as users, authors, and books. Utilizing **JSON Web Tokens (JWT)**, it ensures secure user authentication and access control to keep the library system safe.
 
 ---
 
-## 🌟 Features
+##  Features
 - **User Management**  
   Manage user accounts with registration, authentication, profile updates, and deletion.
 
@@ -20,7 +20,7 @@ This Library Management API, built using **PHP** with the **Slim framework**, al
 
 ---
 
-## 🛠️ API Endpoints
+##  API Endpoints
 
 ### User Endpoints
 
@@ -283,10 +283,10 @@ This Library Management API, built using **PHP** with the **Slim framework**, al
 
 ---
 
-## 🔒 Security & Authentication
+##  Security & Authentication
 This API uses **JWT** for secure authentication. A token is required for most endpoints, ensuring only authorized access to the library's resources. Tokens expire periodically to enhance security, necessitating re-authentication.
 
 ---
 
-## 👤 Author
+##  Author
 **Elmer Jr. Flores**
